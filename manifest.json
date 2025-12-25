@@ -1,5 +1,5 @@
 {
-  "name": "Plank Counter",
+  "name": "Plank Counter Pro",
   "short_name": "Plank",
   "start_url": "index.html",
   "display": "standalone",
@@ -7,9 +7,10 @@
   "theme_color": "#007AFF",
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/3048/3048344.png",
+      "src": "https://cdn-icons-png.flaticon.com/512/742/742751.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }

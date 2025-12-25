@@ -3,8 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Plank Counter PWA</title>
+    <title>Plank Pro</title>
+    
+    <!-- 1. POWIĄZANIA PWA -->
+    <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/742/742751.png">
+    
+    <!-- 2. TRYB PEŁNOEKRANOWY DLA IPHONE -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Plank Pro">
+
     <style>
         :root {
             --blue: #007AFF;
@@ -23,6 +32,7 @@
             height: 100vh;
             margin: 0;
             color: #1C1C1E;
+            overflow: hidden;
         }
         .stats { text-align: center; margin-top: 40px; }
         .stats-label { font-size: 12px; letter-spacing: 2px; color: var(--gray); text-transform: uppercase; }
@@ -45,7 +55,7 @@
         .bg-circle { stroke: rgba(0,0,0,0.05); }
         .progress-circle {
             stroke: var(--orange);
-            stroke-dasharray: 816; /* 2 * PI * 130 */
+            stroke-dasharray: 816;
             stroke-dashoffset: 816;
             transition: stroke-dashoffset 0.3s linear, stroke 0.3s;
         }
@@ -75,8 +85,8 @@
         .btn-reset { background-color: rgba(0,0,0,0.1); fill: var(--gray); }
 
         .btn-upgrade {
-            width: 80%;
-            padding: 15px;
+            width: 85%;
+            padding: 18px;
             background-color: var(--blue);
             color: white;
             border: none;
@@ -92,7 +102,7 @@
 <body>
 
     <div class="stats">
-        <div class="stats-label">Łączny czas Plank</div>
+        <div class="stats-label">Suma wszystkich planków</div>
         <div id="totalTimeDisplay" class="stats-value">00:00</div>
     </div>
 
@@ -109,41 +119,64 @@
 
     <div class="controls">
         <button id="playBtn" class="btn-circle btn-play">
-            <svg viewBox="0 0 24 24" width="40" height="40" style="transform:none"><path id="playIcon" d="M8 5v14l11-7z"/></svg>
+            <svg viewBox="0 0 24 24" width="40" height="40" style="fill:white">
+                <path id="playIcon" d="M8 5v14l11-7z"/>
+            </svg>
         </button>
         <button id="resetBtn" class="btn-circle btn-reset">
-            <svg viewBox="0 0 24 24" width="40" height="40" style="transform:none"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+            <svg viewBox="0 0 24 24" width="40" height="40" style="fill:var(--gray)">
+                <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+            </svg>
         </button>
     </div>
 
     <button id="upgradeBtn" class="btn-upgrade">POWIĘKSZ CEL O 5S (+)</button>
 
     <script>
-        // 1. Inicjalizacja danych z localStorage [web:93]
+        // --- 1. DANE I ZAPIS --- [web:93]
         let totalTime = parseFloat(localStorage.getItem('totalPlankTime')) || 0;
         let plankTarget = parseFloat(localStorage.getItem('plankTarget')) || 180;
         let timeRemaining = plankTarget;
         let isRunning = false;
         let timerInterval;
 
-        const totalTimeDisplay = document.getElementById('totalTimeDisplay');
-        const timeLeftDisplay = document.getElementById('timeLeft');
-        const currentTargetDisplay = document.getElementById('currentTarget');
-        const progressCircle = document.getElementById('progressCircle');
-        const playBtn = document.getElementById('playBtn');
-        const playIcon = document.getElementById('playIcon');
+        // --- 2. DŹWIĘK (Web Audio API) --- [web:143]
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playTone(freq, duration, startTime) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0, startTime);
+            gain.gain.linearRampToValueAtTime(0.2, startTime + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+            osc.start(startTime); osc.stop(startTime + duration);
+        }
 
-        // 2. Audio - używamy dźwięku systemowego przez API syntezy lub zewnętrzny link
-        const finishSound = new Audio('https://actions.google.com/sounds/v1/alarms/spaceship_alarm.ogg');
+        function finishSession() {
+            stopInterval();
+            const now = audioCtx.currentTime;
+            let d = 0;
+            // 2 serie po 6 piknięć
+            for(let s=0; s<2; s++) {
+                for(let i=0; i<6; i++) { 
+                    playTone(880, 0.1, now + d); 
+                    d += 0.2; 
+                }
+                d += 0.4;
+            }
+            setTimeout(() => { alert("KONIEC! Cel osiągnięty."); }, d * 1000);
+        }
 
+        // --- 3. LOGIKA I UI ---
         function updateUI() {
-            totalTimeDisplay.innerText = formatTime(totalTime);
-            timeLeftDisplay.innerText = formatTime(timeRemaining);
-            currentTargetDisplay.innerText = `CEL: ${plankTarget}s`;
+            document.getElementById('totalTimeDisplay').innerText = formatTime(totalTime);
+            document.getElementById('timeLeft').innerText = formatTime(timeRemaining);
+            document.getElementById('currentTarget').innerText = `CEL: ${plankTarget}s`;
             
             const offset = 816 - (timeRemaining / plankTarget) * 816;
-            progressCircle.style.strokeDashoffset = offset;
-            progressCircle.style.stroke = isRunning ? "#34C759" : "#FF9500";
+            document.getElementById('progressCircle').style.strokeDashoffset = offset;
+            document.getElementById('progressCircle').style.stroke = isRunning ? "#34C759" : "#FF9500";
         }
 
         function formatTime(seconds) {
@@ -153,15 +186,16 @@
         }
 
         function toggleTimer() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
             isRunning = !isRunning;
             if (isRunning) {
-                playIcon.setAttribute('d', 'M6 19h4V5H6v14zm8-14v14h4V5h-4z'); // Pause Icon
-                playBtn.className = "btn-circle btn-pause";
+                document.getElementById('playIcon').setAttribute('d', 'M6 19h4V5H6v14zm8-14v14h4V5h-4z');
+                document.getElementById('playBtn').className = "btn-circle btn-pause";
                 timerInterval = setInterval(() => {
                     if (timeRemaining > 0) {
                         timeRemaining--;
                         totalTime++;
-                        saveData();
+                        localStorage.setItem('totalPlankTime', totalTime);
                         updateUI();
                     } else {
                         finishSession();
@@ -174,45 +208,25 @@
 
         function stopInterval() {
             clearInterval(timerInterval);
-            playIcon.setAttribute('d', 'M8 5v14l11-7z'); // Play Icon
-            playBtn.className = "btn-circle btn-play";
+            document.getElementById('playIcon').setAttribute('d', 'M8 5v14l11-7z');
+            document.getElementById('playBtn').className = "btn-circle btn-play";
             isRunning = false;
         }
 
-        function finishSession() {
-            stopInterval();
-            finishSound.play();
-            alert("Koniec! Świetna robota.");
-        }
-
-        function saveData() {
-            localStorage.setItem('totalPlankTime', totalTime);
-            localStorage.setItem('plankTarget', plankTarget);
-        }
-
-        playBtn.addEventListener('click', toggleTimer);
-        
+        document.getElementById('playBtn').addEventListener('click', toggleTimer);
         document.getElementById('resetBtn').addEventListener('click', () => {
             stopInterval();
             timeRemaining = plankTarget;
             updateUI();
         });
-
         document.getElementById('upgradeBtn').addEventListener('click', () => {
             plankTarget += 5;
             timeRemaining = plankTarget;
-            saveData();
+            localStorage.setItem('plankTarget', plankTarget);
             updateUI();
         });
 
-        // Start
         updateUI();
     </script>
 </body>
 </html>
-
-
-
-
-
-
